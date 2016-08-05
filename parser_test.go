@@ -202,20 +202,13 @@ func TestProcessLinks(t *testing.T) {
 		t.Errorf("Error in %q(%s) => %d result expect %q\n", getFunctionName(processLinks), ts.URL, len(out), 1)
 	}
 	for result := range out {
-		d := result.endProcessingTime.Sub(result.startProcessingTime)
+		/*d := result.endProcessingTime.Sub(result.startProcessingTime)
 		if d > time.Millisecond {
 			t.Errorf("Error in %q(%s) => took too long: %dms expect: %dms\n", getFunctionName(processLinks), ts.URL, d/time.Millisecond, time.Millisecond)
-		}
+		}*/
 		if result.title != "My title" {
 			t.Errorf("Error in %q(%s) => %q expect %q\n", getFunctionName(processLinks), ts.URL, result.title, "My title")
 		}
-		/*log.Printf("%s | %s | Wait time: %dms | Processing time: %dms\n",
-			result.url,
-			result.title,
-			result.endProcessingTime.Sub(result.queueingTime)/time.Millisecond,
-			result.endProcessingTime.Sub(result.startProcessingTime)/time.Millisecond,
-		)*/
 	}
 
 }
-

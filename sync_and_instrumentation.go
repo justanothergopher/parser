@@ -16,15 +16,7 @@ type Global struct {
 	expCounter      *expvar.Int       // instrumentation: # of processed requests (total)
 }
 
-// start-time init
-var global = Global{
-	globalCounter:   0,
-	mutex:           &sync.Mutex{},
-	fetchInProgress: make(map[string]string, maxHTTPconnections),
-	processesLimit:  make(chan string, maxHTTPconnections),
-	expRequests:     expvar.NewString("requests"),
-	expCounter:      expvar.NewInt("counter"),
-}
+var global Global
 
 // addURL adds an URL to 'fetch in progress list' and increase
 // a counter of total http requests

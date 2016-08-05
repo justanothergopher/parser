@@ -2,11 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"runtime"
+	"strings"
+	"time"
 )
 
 type restHandler struct {
@@ -15,21 +19,25 @@ type restHandler struct {
 	Handler http.HandlerFunc `json:"-"`
 }
 
+// IM is represents input message structure
 type IM struct {
 	Msg string `json:"message"`
 }
 
+// URLResponse represents url:title pair in output struct
 type URLResponse struct {
 	URL   string `json:"url"`
 	Title string `json:"title"`
 }
 
+// ServiceResponse - output struct
 type ServiceResponse struct {
 	Mentions  []string      `json:"mentions"`
 	Emoticons []string      `json:"emoticons"`
 	Links     []URLResponse `json:"links"`
 }
 
+// RESTHandlers contains a list of all handlers registered in the system
 var RESTHandlers []restHandler
 
 func init() {
@@ -39,6 +47,9 @@ func init() {
 		},
 		restHandler{
 			Path: "/api/v1/parse", Method: "POST", Handler: doParsingHandler,
+		},
+		restHandler{
+			Path: "/bulktest", Method: "GET", Handler: doBulkTestHandler,
 		},
 		restHandler{
 			Path: "/selftest", Method: "GET", Handler: doSelfTestHandler,
@@ -58,7 +69,8 @@ func getFunctionName(i interface{}) string {
 }
 
 // defaultHandler is used as a 'default' in cases when requested uri
-// does not match with any registered handlers
+// does not match with any registered handlers. It just sends back
+// a list of registerd rest endpoints
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	// set return type as json to allow automatic processing
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -150,38 +162,54 @@ var selftestURLSet = []string{
 	"https://www.netflix.com",
 }
 
-/*
-	if int(global.getHTTPRequestsTotal()) != numberOfRepeats*len(fetchURLTests) {
-		t.Errorf("TestLinkProcessing => %d, expect %d", global.globalCounter, numberOfRepeats*len(fetchURLTests))
-	}*/
-
-func doSelfTestHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+func doBulkTestHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 
 	w.WriteHeader(http.StatusOK)
 	out := processLinks(selftestURLSet)
-
-	rr := []ServiceResponse{}
-	for result := range out {
-		r := ServiceResponse{
-			Mentions:  []string{},
-			Emoticons: []string{},
-			Links:     []URLResponse{},
-		}
-		r.Links = []URLResponse{
-			{
-				URL:   result.url,
-				Title: result.title,
-			},
-		}
-
-		rr = append(rr, r)
+	result := ""
+	for r := range out {
+		s := fmt.Sprintf("%s | %s | Wait time: %sms | Fetch time: %sms\n",
+			r.url,
+			r.title,
+			r.endProcessingTime.Sub(r.queueingTime)/time.Millisecond,
+			r.endProcessingTime.Sub(r.startProcessingTime)/time.Millisecond)
+		result += s
 	}
-	b, err := json.Marshal(rr)
-	if err == nil {
-		w.Write(b)
-	} else {
+
+	w.Write([]byte(result))
+}
+
+func doSelfTestHandler(w http.ResponseWriter, r *http.Request) {
+	response := `<html><title>Atlassian</title></html>`
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintln(w, response)
+	}))
+	defer ts.Close()
+	request := `{ "message":"hey @here ` + ts.URL + ` is (Cool)" }`
+
+	url := "http://" + serviceAddr + "/api/v1/parse"
+	resp, err := http.Post(url, "application/json", strings.NewReader(request))
+	if err != nil {
 		w.Write([]byte(err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	b, e := ioutil.ReadAll(resp.Body)
+	if e != nil {
+		w.Write([]byte(e.Error()))
+		return
+	}
+	var output ServiceResponse
+	if err := json.Unmarshal(b, &output); err != nil {
+		w.Write([]byte(err.Error()))
+	}
+
+	if output.Emoticons[0] == "Cool" && output.Mentions[0] == "here" && output.Links[0].URL == ts.URL && output.Links[0].Title == "Atlassian" {
+		w.Write([]byte("SelfTest - PASS"))
+	} else {
+		w.Write([]byte("SelfTest - FAIL"))
 	}
 
 }

@@ -133,9 +133,12 @@ func processFetchingJob(job linkProcessingJob, out chan linkProcessingResult, wg
 	out <- result
 }
 
+// fetchLinksAsync runs multiple go-routings to fetch page
+// defined by input links and put result into output channel
 func fetchLinksAsync(in chan linkProcessingJob) chan linkProcessingResult {
-	var wg sync.WaitGroup
+	var wg sync.WaitGroup // used to sync between go-routines
 	out := make(chan linkProcessingResult, len(in))
+	// iterates through input channel and runs new go-routine for eahc url
 	for job := range in {
 		wg.Add(1)
 		go processFetchingJob(job, out, &wg)
