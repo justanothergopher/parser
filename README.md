@@ -3,8 +3,10 @@ accepts post on /api/v1/parse as a json { "message":"xyz" }
 returns json with mentions, emoticons and url:title pairs
 see parse.go for more details
 
-instrumentation/status: /debug/vars
-  selftests:
+instrumentation/status: 
+  /debug/vars
+
+selftests:
   /selftest
   /bulktest
 
